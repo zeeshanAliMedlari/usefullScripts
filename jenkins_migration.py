@@ -34,22 +34,34 @@ def switch_kube_context(context):
 def backup_jenkins_data(namespace, pod, backup_path, config_backup_path):
     print(f"Backing up Jenkins data from {namespace} namespace...")
     run_command(f"kubectl -n {namespace} exec {pod} -- tar -czvf /tmp/jenkins-backup.tar.gz {backup_path}")
-    run_command(f"kubectl -n {namespace} exec {pod} -- tar -czvf /tmp/jenkins-config-backup.tar.gz {config_backup_path}")
+    try:
+        run_command(f"kubectl -n {namespace} exec {pod} -- tar -czvf /tmp/jenkins-config-backup.tar.gz {config_backup_path}")
+    except subprocess.CalledProcessError:
+        print(f"Directory {config_backup_path} does not exist. Skipping config backup.")
 
 def copy_backups_to_local(namespace, pod):
     print("Copying backups to local machine... This might take a while.")
     run_command(f"kubectl -n {namespace} cp {pod}:/tmp/jenkins-backup.tar.gz ./jenkins-backup.tar.gz")
-    run_command(f"kubectl -n {namespace} cp {pod}:/tmp/jenkins-config-backup.tar.gz ./jenkins-config-backup.tar.gz")
+    try:
+        run_command(f"kubectl -n {namespace} cp {pod}:/tmp/jenkins-config-backup.tar.gz ./jenkins-config-backup.tar.gz")
+    except subprocess.CalledProcessError:
+        print("Config backup not found on the pod. Skipping config backup copy.")
 
 def copy_backups_to_pod(namespace, pod):
     print(f"Copying backups to new Jenkins pod in {namespace} namespace... This might take a while.")
     run_command(f"kubectl -n {namespace} cp ./jenkins-backup.tar.gz {pod}:/tmp/jenkins-backup.tar.gz")
-    run_command(f"kubectl -n {namespace} cp ./jenkins-config-backup.tar.gz {pod}:/tmp/jenkins-config-backup.tar.gz")
+    try:
+        run_command(f"kubectl -n {namespace} cp ./jenkins-config-backup.tar.gz {pod}:/tmp/jenkins-config-backup.tar.gz")
+    except subprocess.CalledProcessError:
+        print("Config backup not found locally. Skipping config backup copy to pod.")
 
 def restore_jenkins_data(namespace, pod, backup_path, config_backup_path):
     print(f"Restoring backups in {namespace} namespace... This might take a while.")
     run_command(f"kubectl -n {namespace} exec {pod} -- tar -xzvf /tmp/jenkins-backup.tar.gz -C {backup_path}")
-    run_command(f"kubectl -n {namespace} exec {pod} -- tar -xzvf /tmp/jenkins-config-backup.tar.gz -C {config_backup_path}")
+    try:
+        run_command(f"kubectl -n {namespace} exec {pod} -- tar -xzvf /tmp/jenkins-config-backup.tar.gz -C {config_backup_path}")
+    except subprocess.CalledProcessError:
+        print(f"Config backup not found on the pod. Skipping config restore.")
 
 def main():
     if SWITCH_TENANT:
